@@ -30,6 +30,7 @@ DEFAULT_CONFIG = """{
     "rec-iter": 3,
     "reg-iter": 10,
     "reg-scale": 1.0,
+    "rlmax": [2,2,0],
     "lbreg": 0.0
   },
   "epochs": [
@@ -134,6 +135,16 @@ def execute(): #pylint: disable=unused-variable
     else:
         run.command('dwi2mask in.mif mask.mif')
 
+    # Configuration
+    config = json.loads(DEFAULT_CONFIG)
+    if app.ARGS.setup:
+        with open(path.from_user(app.ARGS.setup, True)) as f:
+            customconfig = json.load(f)
+            # use defaults for unspecified config options
+            customconfig['global'] = {**config['global'], **customconfig['global']}
+            # update config
+            config.update(customconfig)
+
     # Image dimensions
     dims = list(map(int, header.size()))
     vox = list(map(float, header.spacing()))
@@ -147,21 +158,11 @@ def execute(): #pylint: disable=unused-variable
     if len(lmax) != len(shells):
         raise MRtrixError('No. lmax must match no. shells.')
 
-    rlmax = [2,2,0]
     if app.ARGS.rlmax:
         rlmax = [int(l) for l in app.ARGS.rlmax.split(',')]
-    if len(rlmax) > len(lmax) or max(rlmax) > max(lmax):
-        raise MRtrixError('-rlmax invalid.')
-
-    # Configuration
-    config = json.loads(DEFAULT_CONFIG)
-    if app.ARGS.setup:
-        with open(path.from_user(app.ARGS.setup, True)) as f:
-            customconfig = json.load(f)
-            # use defaults for unspecified config options
-            customconfig['global'] = {**config['global'], **customconfig['global']}
-            # update config
-            config.update(customconfig)
+        config['global']['rlmax'] = rlmax
+    if len(config['global']['rlmax']) > len(lmax) or max(config['global']['rlmax']) > max(lmax):
+            raise MRtrixError('-rlmax invalid.')
 
     # Override regularization options if provided
     if app.ARGS.reg:
@@ -186,8 +187,6 @@ def execute(): #pylint: disable=unused-variable
                 i = '1' if k==s else '0'
                 f.write(' '.join([i,]*(l//2+1)) + '\n')
         rfs += [fn,]
-
-    redrfs = ['redrf'+str(k+1)+'.txt' for k in range(len(rlmax))]
 
     # Force max no. threads
     nthr = ''
@@ -265,8 +264,9 @@ def execute(): #pylint: disable=unused-variable
     def rankreduxstep(k, conf):
         lboption = ' -lbreg {}'.format(conf['lbreg']) if conf['lbreg']>0 else ''
         fwhmoption = ' -fwhm {}'.format(round(vu*conf['reg-scale'], 2))
+        redrfs = ['redrf'+str(k+1)+'.txt' for k in range(len(conf['rlmax']))]
         run.command('mrfilter recon-' + str(k) + '.mif smooth -' + fwhmoption + ' | ' +
-                    'msshsvd - -mask mask.mif -lmax ' + ','.join([str(l) for l in rlmax]) +
+                    'msshsvd - -mask mask.mif -lmax ' + ','.join([str(l) for l in conf['rlmax']]) +
                     lboption + ' ' + ' '.join(redrfs) + ' -proj rankredux.mif -force')
 
 
