@@ -82,7 +82,10 @@ def usage(cmdline): #pylint: disable=unused-variable
     options.add_argument('-priorweights', help='Import prior slice weights')
     options.add_argument('-fixedweights', help='Import fixed slice weights')
     options.add_argument('-fixedmotion', help='Import fixed motion traces')
+<<<<<<< HEAD
     options.add_argument('-driftfilter', action='store_true', help='Filter motion for drift')
+=======
+>>>>>>> 55da420... dwimotioncorrect: use mssh as reference for command history
     options.add_argument('-voxelweights', help='Import fixed voxel weights')
     options.add_argument('-export_motion', help='Export rigid motion parameters')
     options.add_argument('-export_weights', help='Export slice weights')
@@ -314,7 +317,7 @@ def execute(): #pylint: disable=unused-variable
 
     #   __________ Copy outputs __________
 
-    run.command('mrconvert recon-'+str(nepochs)+'.mif ' + path.from_user(app.ARGS.output), mrconvert_keyval='NULL', force=app.FORCE_OVERWRITE)
+    run.command('mrconvert recon-'+str(nepochs)+'.mif ' + path.from_user(app.ARGS.output), mrconvert_keyval='recon-'+str(nepochs)+'.mif', force=app.FORCE_OVERWRITE)
     if app.ARGS.export_motion:
         run.command('cp motion.txt ' + path.from_user(app.ARGS.export_motion, True))
     if app.ARGS.export_weights:
