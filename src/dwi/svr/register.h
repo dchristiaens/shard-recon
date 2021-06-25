@@ -224,27 +224,36 @@ namespace MR
       class SliceAlignPipe
       {  MEMALIGN(SliceAlignPipe);
       public:
+
+        // thread resource management
+        struct LocalPrediction {
+          LocalPrediction () {}
+          LocalPrediction (const LocalPrediction& other)
+          {
+            data = Image<float>::scratch(other.data);
+            pred = Image<float>::scratch(other.pred);
+            if (other.mask.valid())
+              mask = Image<bool>::scratch(other.mask);
+          }
+
+          Image<float> data;
+          Image<float> pred;
+          Image<bool>  mask;
+	};
+
+        // ---
+
         SliceAlignPipe(const Image<float>& data, const Image<float>& mssh, const Image<bool>& mask,
                        const size_t mb, const size_t maxiter, const SSP<float>& ssp)
-          : data (data), mssh (mssh), mask(mask), mb (mb), 
+          : data (data), mssh (mssh), mask (mask), mb (mb), 
             maxiter (maxiter), lmax (Math::SH::LforN(mssh.size(4))),
             ssp (ssp)
         {
           Header header1 (mssh); header1.ndim() = 3;
-          pred = Image<float>::scratch(header1);
+          local.pred = Image<float>::scratch(header1);
           if (mask.valid()) {
             Header header2 (data); header2.ndim() = 3;
-            mask_t = Image<bool>::scratch(header2);
-          }
-        }
-
-        SliceAlignPipe(const SliceAlignPipe& other)
-          : data (other.data), mssh (other.mssh), mask (other.mask), pred (),
-            mb (other.mb), maxiter (other.maxiter), lmax (other.lmax), ssp (other.ssp)
-        {
-          pred = Image<float>::scratch(other.pred);
-          if (mask.valid()) {
-            mask_t = Image<bool>::scratch(other.mask_t);
+            local.mask = Image<bool>::scratch(header2);
           }
         }
 
@@ -255,21 +264,21 @@ namespace MR
           Eigen::VectorXf delta;
           Math::SH::delta(delta, slice.bvec, lmax);
           mssh.index(3) = slice.bidx;
-          for (auto l = Loop(0,3) (mssh, pred); l; l++)
+          for (auto l = Loop(0,3) (mssh, local.pred); l; l++)
           {
-            pred.value() = 0;
+            local.pred.value() = 0;
             size_t j = 0;
             for (auto k = Loop(4) (mssh); k; k++, j++)
-              pred.value() += delta[j] * mssh.value();
+              local.pred.value() += delta[j] * mssh.value();
           }
           // position mask to initialisation
           if (mask.valid()) {
             transform_type T { se3exp(slice.motion).cast<double>() };
-            Adapter::Reslice<Interp::Nearest, Image<bool> > reslicer (mask, mask_t, T, {1, 1, 1}, false);
-            copy(reslicer, mask_t);
+            Adapter::Reslice<Interp::Nearest, Image<bool> > reslicer (mask, local.mask, T, {1, 1, 1}, false);
+            copy(reslicer, local.mask);
           }
           // register prediction to data
-          SliceRegistrationFunctor func (data, pred, mask_t, mb, ssp, slice.vol, slice.exc);
+          SliceRegistrationFunctor func (data, local.pred, local.mask, mb, ssp, slice.vol, slice.exc);
           Eigen::LevenbergMarquardt<SliceRegistrationFunctor> lm (func);
           if (maxiter > 0)
             lm.setMaxfev(maxiter);
@@ -284,8 +293,7 @@ namespace MR
         Image<float> data;
         Image<float> mssh;
         Image<bool> mask;
-        Image<float> pred;
-        Image<bool> mask_t;
+        LocalPrediction local;
         const size_t mb, maxiter;
         const int lmax;
         const SSP<float> ssp;
