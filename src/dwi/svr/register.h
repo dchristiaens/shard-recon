@@ -38,8 +38,8 @@ namespace MR
       
         SliceRegistrationFunctor(const Image<Scalar>& target, const Image<Scalar>& moving, 
                                  const Image<bool>& mask, const size_t mb, const SSP<float>& ssp,
-                                 const size_t v, const size_t e)
-          : m (0), nexc ((mb) ? target.size(2)/mb : 1), vol (v), exc (e), T0 (target),
+                                 const size_t e)
+          : m (0), nexc ((mb) ? target.size(2)/mb : 1), exc (e), T0 (target),
             ssp (ssp), mask (mask), target (target),
             moving (moving, 0.0f), Dmoving (moving, 0.0f)
         {
@@ -56,7 +56,6 @@ namespace MR
           // interpolate
           Eigen::Vector3f trans;
           size_t i = 0;
-          target.index(3) = vol;
           for (target.index(2) = exc; target.index(2) < target.size(2); target.index(2) += nexc) {
             for (auto l = Loop(0,2)(target); l; l++) {
               if (!isInMask()) continue;
@@ -89,7 +88,6 @@ namespace MR
           Eigen::Vector3f trans;
           Eigen::RowVector3f grad;
           size_t i = 0;
-          target.index(3) = vol;
           for (target.index(2) = exc; target.index(2) < target.size(2); target.index(2) += nexc) {
             for (auto l = Loop(0,2)(target); l; l++) {
               if (!isInMask()) continue;
@@ -114,7 +112,7 @@ namespace MR
         size_t inputs() const { return 6; }
         
       private:
-        size_t m, nexc, vol, exc;
+        size_t m, nexc, exc;
         Transform T0;
         const SSP<float> ssp;
         Image<bool> mask;
@@ -227,7 +225,16 @@ namespace MR
 
         // thread resource management
         struct LocalPrediction {
-          LocalPrediction () {}
+          LocalPrediction (const Image<float>& source, const Image<float>& mssh, const Image<bool>& mask0)
+          {
+            Header shdr (source); shdr.ndim() = 3;
+            data = Image<float>::scratch(shdr);
+            Header rhdr (mssh); rhdr.ndim() = 3;
+            pred = Image<float>::scratch(rhdr);
+            if (mask0.valid())
+              mask = Image<bool>::scratch(shdr);
+          }
+
           LocalPrediction (const LocalPrediction& other)
           {
             data = Image<float>::scratch(other.data);
@@ -245,21 +252,16 @@ namespace MR
 
         SliceAlignPipe(const Image<float>& data, const Image<float>& mssh, const Image<bool>& mask,
                        const size_t mb, const size_t maxiter, const SSP<float>& ssp)
-          : data (data), mssh (mssh), mask (mask), mb (mb), 
-            maxiter (maxiter), lmax (Math::SH::LforN(mssh.size(4))),
-            ssp (ssp)
-        {
-          Header header1 (mssh); header1.ndim() = 3;
-          local.pred = Image<float>::scratch(header1);
-          if (mask.valid()) {
-            Header header2 (data); header2.ndim() = 3;
-            local.mask = Image<bool>::scratch(header2);
-          }
-        }
+          : data (data), mssh (mssh), mask (mask), local (data, mssh, mask), mb (mb), 
+            maxiter (maxiter), lmax (Math::SH::LforN(mssh.size(4))), ssp (ssp)
+        { }
 
         bool operator() (const SliceIdx& slice, SliceIdx& out)
         {
           out = slice;
+          // copy data
+          data.index(3) = slice.vol;
+          copy(data, local.data, 0, 3);
           // calculate dwi contrast
           Eigen::VectorXf delta;
           Math::SH::delta(delta, slice.bvec, lmax);
@@ -278,7 +280,7 @@ namespace MR
             copy(reslicer, local.mask);
           }
           // register prediction to data
-          SliceRegistrationFunctor func (data, local.pred, local.mask, mb, ssp, slice.vol, slice.exc);
+          SliceRegistrationFunctor func (local.data, local.pred, local.mask, mb, ssp, slice.exc);
           Eigen::LevenbergMarquardt<SliceRegistrationFunctor> lm (func);
           if (maxiter > 0)
             lm.setMaxfev(maxiter);
