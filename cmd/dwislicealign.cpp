@@ -54,6 +54,10 @@ void usage ()
   + Option ("maxiter", "maximum no. iterations for the registration")
     + Argument ("n").type_integer(0)
 
+  + Option ("multiecho", "2nd slice readout in multiecho acquisitions")
+    + Argument ("data").type_image_in()
+    + Argument ("mssh").type_image_in()
+
   + DWI::GradImportOptions();
 
 }
@@ -121,10 +125,22 @@ void run ()
       throw Exception("dimension mismatch in motion initialisaton.");
   }
 
-  // run registration
+  // set up registration
   DWI::SVR::SliceAlignSource source (data.size(3), data.size(2), mb, grad, bvals, init);
   DWI::SVR::SliceAlignPipe pipe (data, mssh, mask, mb, niter, ssp);
   DWI::SVR::SliceAlignSink sink (data.size(3), data.size(2), mb);
+
+  // 2nd echo
+  opt = get_options("multiecho");
+  if (opt.size()) {
+    auto data2 = Image<value_type>::open(opt[0][0]);
+    check_dimensions(data, data2);
+    auto mssh2 = Image<value_type>::open(opt[0][1]);
+    check_dimensions(mssh, mssh2);
+    pipe.set_multiecho(data2, mssh2);
+  }
+
+  // run registration
   Thread::run_queue(source, DWI::SVR::SliceIdx(), Thread::multi(pipe), DWI::SVR::SliceIdx(), sink);
 
   // output

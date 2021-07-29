@@ -256,6 +256,14 @@ namespace MR
               mask = Image<bool>::scratch(other.mask);
           }
 
+	  void resize (const size_t nc)
+          {
+            Header shdr (data); shdr.ndim() = 4; shdr.size(3) = nc;
+            Header rhdr (pred); rhdr.ndim() = 4; rhdr.size(3) = nc;
+	    data = Image<float>::scratch(shdr);
+            pred = Image<float>::scratch(rhdr);
+          }
+
           Image<float> data;
           Image<float> pred;
           Image<bool>  mask;
@@ -269,18 +277,41 @@ namespace MR
             maxiter (maxiter), lmax (Math::SH::LforN(mssh.size(4))), ssp (ssp)
         { }
 
+	void set_multiecho(const Image<float>& data2ndecho, const Image<float>& mssh2ndecho)
+	{
+	  data2 = data2ndecho;
+          mssh2 = mssh2ndecho;
+          local.resize(2);
+	}
+
         bool operator() (const SliceIdx& slice, SliceIdx& out)
         {
           out = slice;
           // copy data
+          if (data2.valid()) {
+            data2.index(3) = slice.vol;
+            local.data.index(3) = 1;
+            copy(data2, local.data, 0, 3);
+            local.data.index(3) = 0;
+          }
           data.index(3) = slice.vol;
           copy(data, local.data, 0, 3);
           // calculate dwi contrast
           Eigen::VectorXf delta;
           Math::SH::delta(delta, slice.bvec, lmax);
+          if (mssh2.valid()) {
+            mssh2.index(3) = slice.bidx;
+            local.pred.index(3) = 1;
+            for (auto l = Loop(0,3) (mssh2, local.pred); l; l++) {
+              local.pred.value() = 0;
+              size_t j = 0;
+              for (auto k = Loop(4) (mssh2); k; k++, j++)
+                local.pred.value() += delta[j] * mssh2.value();
+            }
+            local.pred.index(3) = 0;
+          }
           mssh.index(3) = slice.bidx;
-          for (auto l = Loop(0,3) (mssh, local.pred); l; l++)
-          {
+          for (auto l = Loop(0,3) (mssh, local.pred); l; l++) {
             local.pred.value() = 0;
             size_t j = 0;
             for (auto k = Loop(4) (mssh); k; k++, j++)
@@ -312,6 +343,9 @@ namespace MR
         const size_t mb, maxiter;
         const int lmax;
         const SSP<float> ssp;
+
+	Image<float> data2;
+	Image<float> mssh2;
       
       };
 
