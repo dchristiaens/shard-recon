@@ -84,6 +84,7 @@ def usage(cmdline): #pylint: disable=unused-variable
     options.add_argument('-voxelweights', help='Import fixed voxel weights')
     options.add_argument('-export_motion', help='Export rigid motion parameters')
     options.add_argument('-export_weights', help='Export slice weights')
+    options.add_argument('-multiecho', nargs=2, help='Reconstruct 2nd readout in multi-echo data')
     app.add_dwgrad_import_options(cmdline)
 
 
@@ -113,6 +114,8 @@ def execute(): #pylint: disable=unused-variable
         run.command('mrconvert ' + path.from_user(app.ARGS.mask, True) + ' ' + path.to_scratch('mask.mif', True))
     if app.ARGS.fieldmap:
         run.command('mrconvert ' + path.from_user(app.ARGS.fieldmap, True) + ' ' + path.to_scratch('field.mif', True))
+    if app.ARGS.multiecho:
+        run.command('mrconvert ' + path.from_user(app.ARGS.multiecho[0], True) + ' ' + path.to_scratch('in_2ndecho.mif', True))
     app.goto_scratch_dir()
 
     # Make sure it's actually a DWI that's been passed
@@ -191,6 +194,8 @@ def execute(): #pylint: disable=unused-variable
         rfs += [fn,]
 
     redrfs = ['redrf'+str(k+1)+'.txt' for k in range(len(rlmax))]
+    rfs2e = ['rf'+str(k+1)+'_2ndecho.txt' for k in range(len(lmax))]
+    redrfs2e = ['redrf'+str(k+1)+'_2ndecho.txt' for k in range(len(rlmax))]
 
     # Force max no. threads
     nthr = ''
@@ -224,20 +229,24 @@ def execute(): #pylint: disable=unused-variable
 
 
     # Variable input file name
-    global inputfn, voxweightsfn
+    global inputfn, echo2fn, voxweightsfn
     inputfn = 'in.mif'
+    echo2fn = 'in_2ndecho.mif'
     voxweightsfn = 'voxelweights.mif'
 
 
 
     #   __________ Function definitions __________
 
-    def reconstep(k, conf):
-        rcmd = 'dwirecon {} recon-{}.mif -spred spred.mif'.format(inputfn, k)
-        rcmd += ' -maxiter {} -reg {} -zreg {}'.format(conf['rec-iter'], conf['rec-reg'], conf['rec-zreg'])
-        rcmd += ssp_option + ' -rf ' + ' -rf '.join(rfs)
+    def reconstep(k, conf, echo2=False):
+        if not echo2:
+            rcmd = 'dwirecon {} recon-{}.mif -spred spred.mif'.format(inputfn, k)
+        else:
+            rcmd = 'dwirecon {} recon_2ndecho-{}.mif -spred spred_2ndecho.mif'.format(echo2fn, k)
+        rcmd += ' -maxiter {} -reg {} -zreg {}'.format(conf['rec-iter'], conf['rec-reg'], conf['rec-zreg']) + ssp_option
+        rcmd += ssp_option + ' -rf ' + ' -rf '.join(rfs2e if echo2 and k>0 else rfs)
         if k>0:
-            rcmd += ' -motion motion.txt -weights sliceweights.txt -init recon-{}.mif'.format(k-1)
+            rcmd += ' -motion motion.txt -weights sliceweights.txt -init recon{}-{}.mif'.format('_2ndecho' if echo2 else '', k-1)
         elif app.ARGS.priorweights:
             rcmd += ' -weights priorweights.txt'
         if app.ARGS.voxelweights:
@@ -258,17 +267,21 @@ def execute(): #pylint: disable=unused-variable
             np.savetxt('sliceweights.txt', W1 * W0)
 
 
-    def basisupdatestep(k, conf):
+    def basisupdatestep(k, conf, echo2=False):
         lboption = ' -lbreg {}'.format(conf['lbreg']) if conf['lbreg']>0 else ''
-        run.command('msshsvd recon-' + str(k) + '.mif -mask mask.mif -lmax ' + ','.join([str(l) for l in sorted(lmax)[::-1]]) + lboption + ' ' + ' '.join(rfs) + ' -force')
+        suffix = '_2ndecho' if echo2 else ''
+        run.command('msshsvd recon' + suffix + '-' + str(k) + '.mif -mask mask.mif -lmax ' + 
+                    ','.join([str(l) for l in sorted(lmax)[::-1]]) + lboption + ' ' + 
+                    ' '.join(rfs if not echo2 else rfs2e) + ' -force')
 
 
-    def rankreduxstep(k, conf):
+    def rankreduxstep(k, conf, echo2=False):
         lboption = ' -lbreg {}'.format(conf['lbreg']) if conf['lbreg']>0 else ''
         fwhmoption = ' -fwhm {}'.format(round(vu*conf['reg-scale'], 2))
-        run.command('mrfilter recon-' + str(k) + '.mif smooth -' + fwhmoption + ' | ' +
+        suffix = '_2ndecho' if echo2 else ''
+        run.command('mrfilter recon' + suffix + '-' + str(k) + '.mif smooth -' + fwhmoption + ' | ' +
                     'msshsvd - -mask mask.mif -lmax ' + ','.join([str(l) for l in rlmax]) +
-                    lboption + ' ' + ' '.join(redrfs) + ' -proj rankredux.mif -force')
+                    lboption + ' ' + ' '.join(redrfs if not echo2 else redrfs2e) + ' -proj rankredux' + suffix + '.mif -force')
 
 
     def registrationstep(k, conf):
@@ -276,19 +289,24 @@ def execute(): #pylint: disable=unused-variable
             return;
         rcmd = 'dwislicealign {} rankredux.mif motion.txt -mask mask.mif -maxiter {}'.format(inputfn, conf['reg-iter'])
         rcmd += ' -mb ' + (str(mb) if conf['svr'] else '0') + (' -init motion.txt' if k>0 else '')
+        if app.ARGS.multiecho:
+            rcmd += ' -multiecho ' + echo2fn + ' rankredux_2ndecho.mif'
         rcmd += ssp_option + ' -force' + nthr
         run.command(rcmd)
         run.command('motionfilter motion.txt sliceweights.txt motion.txt -medfilt 5' + motfilt_option)
 
 
     def fieldalignstep(k):
-        global inputfn, voxweightsfn
+        global inputfn, echo2fn, voxweightsfn
         if app.ARGS.fieldmap:
             cmdopt = ' -motion motion.txt -fidx ' + ('0' if not app.ARGS.fieldidx else app.ARGS.fieldidx) + ' -force' if k > 0 else ''
             run.command('mrfieldunwarp in.mif field.mif unwarped.mif' + cmdopt)
+            if app.ARGS.multiecho:
+                run.command('mrfieldunwarp in_2ndecho.mif field.mif unwarped_2ndecho.mif' + cmdopt)
             if app.ARGS.voxelweights:
                 run.command('mrfieldunwarp -nomodulation voxelweights.mif field.mif voxelweights-unwarped.mif' + cmdopt)
             inputfn = 'unwarped.mif'
+            echo2fn = 'unwarped_2ndecho.mif'
             voxweightsfn = 'voxelweights-unwarped.mif'
 
 
@@ -301,12 +319,17 @@ def execute(): #pylint: disable=unused-variable
         # update template
         fieldalignstep(k)
         reconstep(k, liveconfig)
+        if app.ARGS.multiecho:
+            reconstep(k, liveconfig, True)
         # end on last recon step
         if k == nepochs:
             break
         # basis update and rank reduction
         basisupdatestep(k, liveconfig)
         rankreduxstep(k, liveconfig)
+        if app.ARGS.multiecho:
+            basisupdatestep(k, liveconfig, True)
+            rankreduxstep(k, liveconfig, True)
         # slice weights
         sliceweightstep(k)
         # register template to volumes
@@ -320,6 +343,8 @@ def execute(): #pylint: disable=unused-variable
         run.command('cp motion.txt ' + path.from_user(app.ARGS.export_motion, True))
     if app.ARGS.export_weights:
         run.command('cp sliceweights.txt ' + path.from_user(app.ARGS.export_weights, True))
+    if app.ARGS.multiecho:
+        run.command('mrconvert recon_2ndecho-'+str(nepochs)+'.mif ' + path.from_user(app.ARGS.multiecho[1]), mrconvert_keyval='recon_2ndecho-'+str(nepochs)+'.mif', force=app.FORCE_OVERWRITE)
 
 
 mrtrix3.execute()
