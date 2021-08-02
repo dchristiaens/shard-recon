@@ -47,6 +47,10 @@ void usage ()
   + Option ("motion", "rigid motion parameters (used for masking)")
     + Argument ("param").type_file_in()
 
+  + Option ("multiecho", "2nd slice readout in multiecho acquisitions")
+    + Argument ("data").type_image_in()
+    + Argument ("pred").type_image_in()
+
   + Option ("export_error", "export RMSE matrix, scaled by the median error in each shell.")
     + Argument ("E").type_file_out()
 
@@ -75,6 +79,11 @@ class RMSErrorFunctor {
       N->setZero();
     }
 
+    void set_multiecho(const Image<value_type>& data, const Image<value_type>& pred) {
+      data2ndecho = data;
+      pred2ndecho = pred;
+    }
+
     void operator() (Image<value_type>& data, Image<value_type>& pred) {
       size_t v = data.get_index(3);
       size_t z = data.get_index(2);
@@ -93,6 +102,11 @@ class RMSErrorFunctor {
         }
         value_type d = data.value() - pred.value();
         e += d * d;
+        if (data2ndecho.valid()) {
+          assign_pos_of(data).to(data2ndecho, pred2ndecho);
+          d = data2ndecho.value() - pred2ndecho.value();
+          e += d * d;
+        }
         n++;
       }
       (*E)(z, v) = e;
@@ -118,6 +132,9 @@ class RMSErrorFunctor {
 
     std::shared_ptr<Eigen::MatrixXf> E;
     std::shared_ptr<Eigen::MatrixXi> N;
+
+    Image<value_type> data2ndecho;
+    Image<value_type> pred2ndecho;
 
 };
 
@@ -256,6 +273,16 @@ void run ()
 
   // Compute RMSE of each slice
   RMSErrorFunctor rmse (data, mask, motion, mb);
+  
+  opt = get_options("multiecho");
+  if (opt.size()) {
+    auto data2 = Image<value_type>::open(opt[0][0]);
+    check_dimensions(data, data2);
+    auto pred2 = Image<value_type>::open(opt[0][1]);
+    check_dimensions(pred, pred2);
+    rmse.set_multiecho(data2, pred2);
+  }
+
   ThreadedLoop("Computing root-mean-squared error", data, 2, 4).run(rmse, data, pred);
   Eigen::MatrixXf E = rmse.result();
 

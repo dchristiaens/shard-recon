@@ -258,8 +258,10 @@ def execute(): #pylint: disable=unused-variable
     def sliceweightstep(k):
         if app.ARGS.fixedweights:
             return;
-        mask_opt = ' -mask mask.mif' + (' -motion motion.txt' if k>0 else '')
-        run.command('dwisliceoutliergmm ' + inputfn + ' spred.mif -mb ' + str(mb) + mask_opt + ' sliceweights.txt -force')
+        cmdoptions = ' -mask mask.mif' + (' -motion motion.txt' if k>0 else '')
+        if app.ARGS.multiecho:
+            cmdoptions += ' -multiecho ' + echo2fn + ' spred_2ndecho.mif'
+        run.command('dwisliceoutliergmm ' + inputfn + ' spred.mif -mb ' + str(mb) + cmdoptions + ' sliceweights.txt -force')
         if app.ARGS.priorweights:
             import numpy as np
             W0 = np.loadtxt('priorweights.txt')
