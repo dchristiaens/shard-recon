@@ -276,9 +276,10 @@ def execute(): #pylint: disable=unused-variable
     def rankreduxstep(k, conf):
         lboption = ' -lbreg {}'.format(conf['lbreg']) if conf['lbreg']>0 else ''
         fwhmoption = ' -fwhm {}'.format(round(vu*conf['reg-scale'], 2))
-        redrfs = ['redrf'+str(k+1)+'.txt' for k in range(len(conf['rlmax']))]
+        rlmax = [min(r,l) for r, l in zip(conf['rlmax'], sorted(lmax, reverse=True))]
+        redrfs = ['redrf'+str(k+1)+'.txt' for k in range(len(rlmax))]
         run.command('mrfilter recon-' + str(k) + '.mif smooth -' + fwhmoption + ' | ' +
-                    'msshsvd - -mask mask.mif -lmax ' + ','.join([str(l) for l in conf['rlmax']]) +
+                    'msshsvd - -mask mask.mif -lmax ' + ','.join(map(str, rlmax)) +
                     lboption + ' ' + ' '.join(redrfs) + ' -proj rankredux.mif -force')
 
 
