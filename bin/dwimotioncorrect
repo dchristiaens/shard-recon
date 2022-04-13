@@ -30,7 +30,6 @@ DEFAULT_CONFIG = """{
     "rec-iter": 3,
     "reg-iter": 10,
     "reg-scale": 1.0,
-    "rlmax": [4,2,0],
     "lbreg": 0.001
   },
   "epochs": [
@@ -169,12 +168,10 @@ def execute(): #pylint: disable=unused-variable
         raise MRtrixError('No. lmax must match no. shells.')
 
     # Set rlmax
-    rlmax = [min(r,max(l-2,0)) for r, l in zip(config['global']['rlmax'], sorted(lmax, reverse=True))]
     if app.ARGS.rlmax:
-        rlmax = [int(l) for l in app.ARGS.rlmax.split(',')]
-    if len(rlmax) > len(lmax) or max(rlmax) > max(lmax):
-            raise MRtrixError('-rlmax invalid.')
-    config['global']['rlmax'] = rlmax
+        config['global']['rlmax'] = [int(l) for l in app.ARGS.rlmax.split(',')]
+    if 'rlmax' not in config['global']:
+        config['global']['rlmax'] = [min(r,max(l-2,0)) for r, l in zip([4,2,0], sorted(lmax, reverse=True))]
 
     # Override regularization options if provided
     if app.ARGS.reg:
