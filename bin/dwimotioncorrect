@@ -30,8 +30,8 @@ DEFAULT_CONFIG = """{
     "rec-iter": 3,
     "reg-iter": 10,
     "reg-scale": 1.0,
-    "rlmax": [2,2,0],
-    "lbreg": 0.0
+    "rlmax": [4,2,0],
+    "lbreg": 0.001
   },
   "epochs": [
     {
@@ -66,8 +66,8 @@ def usage(cmdline): #pylint: disable=unused-variable
     # options
     options = cmdline.add_argument_group('Options for the dwimotioncorrect script')
     options.add_argument('-mask', help='Manually provide a mask image for motion correction')
-    options.add_argument('-lmax', help='SH basis order per shell (default = 0,4,4,...)')
-    options.add_argument('-rlmax', help='Reduced basis order per component for registration (default = 2,2,0)')
+    options.add_argument('-lmax', help='SH basis order per shell (default = maximum with at least 30% oversampling)')
+    options.add_argument('-rlmax', help='Reduced basis order per component for registration (default = 4,2,0 or lower if needed)')
     options.add_argument('-reg', help='Regularization for dwirecon (overrides config; default = 0.005)')
     options.add_argument('-zreg', help='Regularization for dwirecon (overrides config; default = 0.001)')
     options.add_argument('-setup', help='Configuration setup file (json structured)')
@@ -82,6 +82,7 @@ def usage(cmdline): #pylint: disable=unused-variable
     options.add_argument('-priorweights', help='Import prior slice weights')
     options.add_argument('-fixedweights', help='Import fixed slice weights')
     options.add_argument('-fixedmotion', help='Import fixed motion traces')
+    options.add_argument('-driftfilter', action='store_true', help='Filter motion for drift')
     options.add_argument('-voxelweights', help='Import fixed voxel weights')
     options.add_argument('-export_motion', help='Export rigid motion parameters')
     options.add_argument('-export_weights', help='Export slice weights')
@@ -90,6 +91,10 @@ def usage(cmdline): #pylint: disable=unused-variable
 
 
 def execute(): #pylint: disable=unused-variable
+    try:
+        import scipy
+    except ImportError:
+        raise MRtrixError('SciPy required: https://www.scipy.org/install.html')
     # import metadata
     grad_import_option = app.read_dwgrad_import_options()
     pe_import_option = ''
@@ -146,22 +151,30 @@ def execute(): #pylint: disable=unused-variable
 
     # Image dimensions
     dims = list(map(int, header.size()))
-    vox = list(map(float, header.spacing()))
+    vox = list(map(float, header.spacing()[:3]))
     vu = round((vox[0]+vox[1])/2., 1)
-    shells = [s.split('.')[0] for s in image.mrinfo('in.mif', 'shell_bvalues').split()]
+    shells = [int(round(float(s))) for s in image.mrinfo('in.mif', 'shell_bvalues').split()]
+    shell_sizes = [int(s) for s in image.mrinfo('in.mif', 'shell_sizes').split()]
 
     # Set lmax
-    lmax = [0,] + [4,]*(len(shells)-1)
+    def get_max_sh_degree(N, oversampling_factor=1.3):
+        for l in range(0,10,2):
+            if (l+3)*(l+4)/2 * oversampling_factor > N:
+                return l
+ 
+    lmax = [(b>10) * get_max_sh_degree(n) for b, n in zip(shells, shell_sizes)]
     if app.ARGS.lmax:
         lmax = [int(l) for l in app.ARGS.lmax.split(',')]
     if len(lmax) != len(shells):
         raise MRtrixError('No. lmax must match no. shells.')
 
+    # Set rlmax
+    rlmax = [min(r,max(l-2,0)) for r, l in zip(config['global']['rlmax'], sorted(lmax, reverse=True))]
     if app.ARGS.rlmax:
         rlmax = [int(l) for l in app.ARGS.rlmax.split(',')]
-        config['global']['rlmax'] = rlmax
-    if len(config['global']['rlmax']) > len(lmax) or max(config['global']['rlmax']) > max(lmax):
+    if len(rlmax) > len(lmax) or max(rlmax) > max(lmax):
             raise MRtrixError('-rlmax invalid.')
+    config['global']['rlmax'] = rlmax
 
     # Override regularization options if provided
     if app.ARGS.reg:
@@ -190,8 +203,8 @@ def execute(): #pylint: disable=unused-variable
     # Force max no. threads
     nthr = ''
     if app.ARGS.nthreads:
-        nthr = ' -nthreads ' + app.ARGS.nthreads
-
+        nthr = ' -nthreads ' + str(app.ARGS.nthreads)
+        
     # Set multiband factor
     mb = 1
     if app.ARGS.mb:
@@ -202,6 +215,8 @@ def execute(): #pylint: disable=unused-variable
     if app.ARGS.sorder:
         p,s = app.ARGS.sorder.split(',')
         motfilt_option += ' -packs ' + p + ' -shift ' + s
+    if app.ARGS.driftfilter:
+        motfilt_option += ' -driftfilt'
 
     # Import fixed slice weights
     if app.ARGS.priorweights:
@@ -311,7 +326,7 @@ def execute(): #pylint: disable=unused-variable
 
     #   __________ Copy outputs __________
 
-    run.command('mrconvert recon-'+str(nepochs)+'.mif ' + path.from_user(app.ARGS.output, True) + (' -force' if app.FORCE_OVERWRITE else ''))
+    run.command('mrconvert recon-'+str(nepochs)+'.mif ' + path.from_user(app.ARGS.output), mrconvert_keyval='recon-'+str(nepochs)+'.mif', force=app.FORCE_OVERWRITE)
     if app.ARGS.export_motion:
         run.command('cp motion.txt ' + path.from_user(app.ARGS.export_motion, True))
     if app.ARGS.export_weights:
