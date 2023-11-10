@@ -150,9 +150,6 @@ void run ()
   auto petable = PhaseEncoding::get_scheme(data);
   if (petable.rows() != data.size(3))
     throw Exception ("Invalid PE table.");
-  // -----------------------  // TODO: Eddy uses a reverse LR axis for storing
-  petable.col(0) *= -1;       // the PE table, akin to the gradient table.
-  // -----------------------  // Fix in the eddy import/export functions in core.
 
   // Apply rigid rotation to field.
   auto opt = get_options("motion");
