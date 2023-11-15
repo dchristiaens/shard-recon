@@ -150,7 +150,8 @@ def execute(): #pylint: disable=unused-variable
         for l in range(0,10,2):
             if (l+3)*(l+4)/2 * oversampling_factor > N:
                 return l
- 
+        return 10
+
     lmax = [(b>10) * get_max_sh_degree(n) for b, n in zip(shells, shell_sizes)]
     if app.ARGS.lmax:
         lmax = [int(l) for l in app.ARGS.lmax.split(',')]
@@ -204,7 +205,7 @@ def execute(): #pylint: disable=unused-variable
     nthr = ''
     if app.ARGS.nthreads:
         nthr = ' -nthreads ' + str(app.ARGS.nthreads)
-        
+
     # Set multiband factor
     mb = 1
     if app.ARGS.mb:
