@@ -55,7 +55,7 @@ void usage ()
   + Option ("rf", "Basis functions for the radial (multi-shell) domain, provided as matrices in which "
                   "rows correspond with shells and columns with SH harmonic bands.").allow_multiple()
     + Argument ("b").type_file_in()
-  
+
   + Option ("lmax", "The maximum harmonic order for the output series. (default = " + str(DEFAULT_LMAX) + ")")
     + Argument ("order").type_integer(0, 30)
 
@@ -130,7 +130,7 @@ void run ()
   if (opt.size())
     motion = load_matrix<float>(opt[0][0]);
   else
-    motion = Eigen::MatrixXf::Zero(dwi.size(3), 6); 
+    motion = Eigen::MatrixXf::Zero(dwi.size(3), 6);
 
   // Check dimensions
   if (motion.size() && motion.cols() != 6)
@@ -175,14 +175,11 @@ void run ()
     auto petable = PhaseEncoding::get_scheme(dwi);
     PE = petable.leftCols<3>().cast<float>();
     PE.array().colwise() *= petable.col(3).array().cast<float>();
-    // -----------------------  // TODO: Eddy uses a reverse LR axis for storing
-    PE.col(0) *= -1;            // the PE table, akin to the gradient table.
-    // -----------------------  // Fix in the eddy import/export functions in core.
     fieldmap = Image<value_type>::open(opt[0][0]);
     fieldidx = opt[0][1];
   }
 
-  // Get volume indices 
+  // Get volume indices
   vector<size_t> idx;
   if (rf.empty()) {
     idx = shells.largest().get_volumes();
@@ -250,7 +247,7 @@ void run ()
     lmax = get_option_value("lmax", DEFAULT_LMAX);
   else
     lmax = std::min(lmax, (int) get_option_value("lmax", lmax));
-  
+
   float reg = get_option_value("reg", DEFAULT_REG);
   float zreg = get_option_value("zreg", DEFAULT_ZREG);
 
