@@ -30,7 +30,6 @@ namespace MR
     template <class ImageType>
     class ReadCache : public Adapter::Base<ReadCache<ImageType>, ImageType>
     {
-      MEMALIGN (ReadCache<ImageType>)
       public:
         using base_type = Adapter::Base<ReadCache<ImageType>, ImageType>;
         using value_type = typename ImageType::value_type;
@@ -87,7 +86,6 @@ namespace MR
     template <class ImageType>
     class WriteCache : public Adapter::Base<WriteCache<ImageType>, ImageType>
     {
-      MEMALIGN (WriteCache<ImageType>)
       public:
         using base_type = Adapter::Base<WriteCache<ImageType>, ImageType>;
         using value_type = typename ImageType::value_type;
@@ -169,7 +167,6 @@ namespace MR
 
       class QSpaceBasis
       {
-        MEMALIGN (QSpaceBasis)
         public:
           typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> RowMatrixXf;
 
@@ -290,7 +287,6 @@ namespace MR
       template <class ImageType>
       class QSpaceMapping : public Adapter::Base<QSpaceMapping<ImageType>, ImageType>
       {
-        MEMALIGN (QSpaceMapping<ImageType>)
         public:
           using base_type = Adapter::Base<QSpaceMapping<ImageType>, ImageType>;
           using value_type = typename ImageType::value_type;

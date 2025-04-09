@@ -24,7 +24,6 @@ namespace MR
   template <typename ValueType>
   class ImageView : public ImageBase<ImageView<ValueType>, ValueType>
   {
-    MEMALIGN (ImageView<ValueType>)
     public:
       using value_type = ValueType;
 
@@ -107,7 +106,7 @@ namespace MR
     {
 
     class ReconMatrix : public Eigen::EigenBase<ReconMatrix>
-    {  MEMALIGN(ReconMatrix);
+    {
     public:
       // Required typedefs, constants, and method:
       typedef float Scalar;
@@ -259,7 +258,7 @@ namespace MR
 
 
     class ReconMatrixAdjoint : public Eigen::EigenBase<ReconMatrixAdjoint>
-    {  MEMALIGN(ReconMatrixAdjoint);
+    {
     public:
       // Required typedefs, constants, and method:
       typedef float Scalar;

@@ -66,7 +66,6 @@ using value_type = float;
 
 
 class FieldUnwarp {
-  MEMALIGN(FieldUnwarp)
   public:
 
     FieldUnwarp (const Image<value_type>& data, const Image<value_type>& field,

@@ -34,7 +34,7 @@ namespace MR
   {
     template <class ImageType>
     class LinearAdjoint : public Linear <ImageType>
-    { MEMALIGN(LinearAdjoint<ImageType>)
+    {
       public:
         using typename Linear<ImageType>::value_type;
         using Linear<ImageType>::clamp;
@@ -67,7 +67,7 @@ namespace MR
 
     template <class ImageType>
     class CubicAdjoint : public Cubic <ImageType>
-    { MEMALIGN(CubicAdjoint<ImageType>)
+    {
       public:
         using typename Cubic<ImageType>::value_type;
         using Cubic<ImageType>::clamp;
@@ -108,7 +108,6 @@ namespace MR
       template <class ImageType>
       class MotionMapping : public Adapter::Base<MotionMapping<ImageType>, ImageType>
       {
-        MEMALIGN (MotionMapping<ImageType>)
         public:
           using base_type = Adapter::Base<MotionMapping<ImageType>, ImageType>;
           using value_type = typename ImageType::value_type;
@@ -192,7 +191,6 @@ namespace MR
 
       class ReconMapping
       {
-        MEMALIGN(ReconMapping);
         public:
           ReconMapping(const Header& recon, const Header& source, const QSpaceBasis& basis,
                        const Eigen::MatrixXf& rigid, const SSP<float>& ssp)
@@ -218,7 +216,7 @@ namespace MR
             auto spatialmap = Adapter::make<MotionMapping> (qmap, yhdr, motion, ssp);
 
             // define per-slice mapping
-            struct MapSliceX2Y {   MEMALIGN(MapSliceX2Y);
+            struct MapSliceX2Y {
               ImageType2 out;
               decltype(spatialmap) pred;
               size_t ne;
@@ -253,7 +251,7 @@ namespace MR
             auto spatialmap = Adapter::make<MotionMapping> (qmap, yhdr, motion, ssp);
 
             // define per-slice mapping
-            struct MapSliceY2X {   MEMALIGN(MapSliceY2X);
+            struct MapSliceY2X {
               ImageType2 in;
               decltype(spatialmap) pred;
               size_t ne;

@@ -59,7 +59,7 @@ void usage ()
 using value_type = float;
 
 class SHSVDProject
-{ MEMALIGN (SHSVDProject)
+{
   public:
     SHSVDProject (const int l, const Eigen::MatrixXf& P)
       : l(l), P(P)

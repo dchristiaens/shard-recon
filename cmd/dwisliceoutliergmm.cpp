@@ -62,7 +62,6 @@ using value_type = float;
  * @brief RMSE Functor
  */
 class RMSErrorFunctor {
-  MEMALIGN(RMSErrorFunctor)
   public:
     RMSErrorFunctor (const Image<value_type>& in, const Image<bool>& mask,
                      const Eigen::MatrixXf& mot, const int mb = 1)
@@ -127,7 +126,6 @@ class RMSErrorFunctor {
  */
 template <typename T>
 class GMModel {
-  MEMALIGN(GMModel)
   public:
 
     using float_t = T;

@@ -53,7 +53,7 @@ void usage ()
 using value_type = float;
 
 
-class MSSH2Amp { MEMALIGN(MSSH2Amp)
+class MSSH2Amp {
   public:
     template <class MatrixType>
     MSSH2Amp (const MatrixType& dirs, const size_t lmax, const vector<size_t>& idx, bool nonneg) :
