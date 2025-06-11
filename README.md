@@ -8,7 +8,7 @@ Daan Christiaens, Lucilio Cordero-Grande, Maximilian Pietsch, Jana Hutter, Antho
 
 ## Setup & build
 
-Prerequisites: MRtrix 3.0, Eigen 3.3.3, and python 3.x with numpy and scipy.
+Prerequisites: MRtrix 3.0.5, Eigen 3.4.0, and Python 3.x with numpy and scipy.
 
 The code is built like any other [MRtrix3](https://github.com/MRtrix3/mrtrix3) 
 module, i.e., by setting up a symbolic link to the core build script:

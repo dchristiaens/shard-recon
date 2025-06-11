@@ -12,6 +12,7 @@
 #include "math/SH.h"
 #include "image.h"
 #include "dwi/gradient.h"
+#include "dwi/shells.h"
 
 
 using namespace MR;

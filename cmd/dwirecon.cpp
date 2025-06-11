@@ -13,7 +13,7 @@
 #include "image.h"
 #include "math/SH.h"
 #include "dwi/gradient.h"
-#include "phase_encoding.h"
+#include "metadata/phase_encoding.h"
 #include "dwi/shells.h"
 #include "adapter/extract.h"
 
@@ -84,7 +84,7 @@ void usage ()
 
   + DWI::GradImportOptions()
 
-  + PhaseEncoding::ImportOptions
+  + Metadata::PhaseEncoding::ImportOptions
 
   + DWI::ShellsOption
 
@@ -172,7 +172,7 @@ void run ()
   size_t fieldidx = 0;
   Eigen::MatrixXf PE;
   if (hasfield) {
-    auto petable = PhaseEncoding::get_scheme(dwi);
+    auto petable = Metadata::PhaseEncoding::get_scheme(dwi);
     PE = petable.leftCols<3>().cast<float>();
     PE.array().colwise() *= petable.col(3).array().cast<float>();
     // -----------------------  // TODO: Eddy uses a reverse LR axis for storing
@@ -357,13 +357,13 @@ void run ()
 
 
   // Write result to output file
-  Header msshhdr (rechdr);
+  Header msshhdr {rechdr};
   msshhdr.ndim() = 5;
   msshhdr.size(3) = shells.count();
   msshhdr.size(4) = padding;
   Stride::set_from_command_line (msshhdr, {3, 4, 5, 2, 1});
   msshhdr.datatype() = DataType::from_command_line (DataType::Float32);
-  PhaseEncoding::set_scheme (msshhdr, Eigen::MatrixXf());
+  Metadata::PhaseEncoding::clear_scheme (msshhdr.keyval());
   // store b-values and counts
   {
   std::stringstream ss;

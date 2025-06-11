@@ -11,7 +11,7 @@
 #include "command.h"
 #include "image.h"
 #include "transform.h"
-#include "phase_encoding.h"
+#include "metadata/phase_encoding.h"
 #include "interp/linear.h"
 #include "interp/cubic.h"
 
@@ -56,7 +56,7 @@ void usage ()
 
     + Option ("nomodulation", "disable Jacobian intensity modulation")
 
-    + PhaseEncoding::ImportOptions
+    + Metadata::PhaseEncoding::ImportOptions
 
     + DataType::options();
 }
@@ -146,7 +146,7 @@ void run ()
          "(the field map in Hz) instead of the spline coefficient representation.");
   }
 
-  auto petable = PhaseEncoding::get_scheme(data);
+  auto petable = Metadata::PhaseEncoding::get_scheme(data);
   if (petable.rows() != data.size(3))
     throw Exception ("Invalid PE table.");
   // -----------------------  // TODO: Eddy uses a reverse LR axis for storing

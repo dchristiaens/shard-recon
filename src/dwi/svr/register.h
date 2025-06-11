@@ -19,6 +19,7 @@
 #include "interp/nearest.h"
 #include "interp/cubic.h"
 #include "adapter/reslice.h"
+#include "dwi/shells.h"
 
 #include "dwi/svr/param.h"
 #include "dwi/svr/psf.h"
